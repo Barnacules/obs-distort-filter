@@ -1,0 +1,224 @@
+uniform float4x4 ViewProj;
+uniform texture2d image;
+
+uniform float pixel_size;
+uniform float rgb_shift;
+uniform float wave_amount;
+uniform float wave_speed;
+uniform float scanline_intensity;
+uniform float glitch_intensity;
+uniform float time;
+uniform float rand_seed;
+uniform float2 uv_size;
+uniform float packet_loss;
+uniform float freeze_time;
+uniform float interlace;
+uniform float flicker;
+uniform float ghost;
+uniform float horizontal_hold;
+uniform float posterize;
+uniform float rolling_bar;
+uniform float chroma_bleed;
+
+sampler_state textureSampler {
+	Filter    = Linear;
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+};
+
+struct VertDataIn {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+struct VertDataOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertDataOut VSDefault(VertDataIn v_in)
+{
+	VertDataOut vert_out;
+	vert_out.uv = v_in.uv;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	return vert_out;
+}
+
+/* Simple pseudo-random from float2 */
+float random(float2 st)
+{
+	return frac(sin(dot(st.xy, float2(12.9898,78.233))) * 43758.5453123);
+}
+
+/* Value noise for smoother random */
+float noise(float2 st)
+{
+	float2 i = floor(st);
+	float2 f = frac(st);
+	float a = random(i);
+	float b = random(i + float2(1.0, 0.0));
+	float c = random(i + float2(0.0, 1.0));
+	float d = random(i + float2(1.0, 1.0));
+	float2 u = f * f * (3.0 - 2.0 * f);
+	return lerp(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+float4 PSDistort(VertDataOut v_in) : TARGET
+{
+	float2 uv = v_in.uv;
+	float2 pixel = uv * uv_size;
+
+	/* --- Horizontal hold jitter (old TV instability) --- */
+	if (horizontal_hold > 0.0) {
+		float hold_jitter = (random(float2(floor(time * 30.0), 5.0)) - 0.5) *
+				    horizontal_hold * 0.06;
+		uv.x += hold_jitter;
+	}
+
+	/* --- Pixelation --- */
+	float2 pixelated_uv = floor(pixel / pixel_size) * pixel_size + (pixel_size * 0.5);
+	pixelated_uv /= uv_size;
+
+	/* --- Wave distortion --- */
+	float wave = sin(pixelated_uv.y * 30.0 + time * wave_speed) * wave_amount;
+	pixelated_uv.x += wave;
+
+	/* --- Glitch blocks --- */
+	float glitch_line = floor(pixelated_uv.y * 20.0 + rand_seed * 10.0);
+	float glitch_rand = random(float2(glitch_line, rand_seed));
+	if (glitch_rand < glitch_intensity * 0.3) {
+		float shift = (random(float2(glitch_line, time)) - 0.5) * glitch_intensity * 0.15;
+		pixelated_uv.x += shift;
+	}
+
+	/* Horizontal tear strips */
+	float tear_y = frac(sin(floor(time * 8.0) * 127.1) * 43758.5);
+	float tear_band = abs(pixelated_uv.y - tear_y);
+	if (tear_band < 0.005 * glitch_intensity) {
+		pixelated_uv.x += glitch_intensity * 0.05 * sin(time * 50.0);
+	}
+
+	/* --- RGB Shift / Chromatic aberration --- */
+	float shift_intensity = rgb_shift + chroma_bleed * 0.015;
+	float2 shift_r = float2( shift_intensity * (0.5 + 0.5 * sin(time * 2.0)), 0.0);
+	float2 shift_b = float2(-shift_intensity * (0.5 + 0.5 * sin(time * 2.0 + 1.0)), 0.0);
+
+	float4 color_r = image.Sample(textureSampler, pixelated_uv + shift_r);
+	float4 color_g = image.Sample(textureSampler, pixelated_uv);
+	float4 color_b = image.Sample(textureSampler, pixelated_uv + shift_b);
+
+	float4 color;
+	color.r = color_r.r;
+	color.g = color_g.g;
+	color.b = color_b.b;
+	color.a = color_g.a;
+
+	/* --- Ghosting / frame echo --- */
+	if (ghost > 0.0) {
+		float4 ghost_sample = image.Sample(textureSampler,
+			pixelated_uv + float2(ghost * 0.025 + sin(time * 1.5) * 0.005, 0.0));
+		color.rgb += ghost_sample.rgb * ghost * 0.35;
+	}
+
+	/* --- Posterization (color banding / compression artifact) --- */
+	if (posterize > 0.0) {
+		float levels = lerp(256.0, 4.0, posterize);
+		color.rgb = floor(color.rgb * levels) / levels;
+	}
+
+	/* --- Scanlines --- */
+	float scanline = sin(pixelated_uv.y * uv_size.y * 3.14159) * 0.5 + 0.5;
+	color.rgb *= lerp(1.0, scanline, scanline_intensity);
+
+	/* --- Interlacing (drop every other line) --- */
+	if (interlace > 0.0) {
+		float field = frac(floor(pixel.y) * 0.5);
+		if (field > 0.5)
+			color.rgb *= (1.0 - interlace * 0.6);
+	}
+
+	/* --- Occasional color inversion glitch --- */
+	float invert_rand = random(float2(floor(time * 3.0), 7.0));
+	if (invert_rand < glitch_intensity * 0.05) {
+		color.rgb = 1.0 - color.rgb;
+	}
+
+	/* --- Digital noise --- */
+	float n = random(pixel + rand_seed) * glitch_intensity * 0.15;
+	color.rgb += n;
+
+	/* --- Packet loss / macroblock corruption --- */
+	if (packet_loss > 0.0) {
+		float block_size = 16.0;
+		float2 block_id = floor(pixel / block_size);
+		float block_rand = random(float2(block_id.x + 31.0, block_id.y + 47.0 +
+					       floor(time * 8.0)));
+		if (block_rand < packet_loss * 0.2) {
+			float corr_type = random(float2(block_id.x + 13.0, block_id.y + 29.0));
+			if (corr_type < 0.25) {
+				/* Smeared from left */
+				color = image.Sample(textureSampler,
+					pixelated_uv - float2(block_size * 3.0 / uv_size.x, 0.0));
+			} else if (corr_type < 0.5) {
+				/* Solid macroblock color */
+				float3 block_color = float3(
+					random(block_id) * 0.5 + 0.25,
+					random(block_id + 1.0) * 0.5 + 0.25,
+					random(block_id + 2.0) * 0.5 + 0.25);
+				color.rgb = block_color;
+			} else if (corr_type < 0.75) {
+				/* Inverted block */
+				color.rgb = 1.0 - color.rgb;
+			} else {
+				/* Heavy noise block */
+				color.rgb = float3(random(pixel + time),
+						 random(pixel + time + 1.0),
+						 random(pixel + time + 2.0));
+			}
+		}
+	}
+
+	/* --- Flicker (brightness instability) --- */
+	if (flicker > 0.0) {
+		float flick = 1.0 + (random(float2(time * 60.0, 0.0)) - 0.5) *
+				    flicker * 0.35;
+		color.rgb *= flick;
+	}
+
+	/* --- Rolling bar (CRT interference) --- */
+	if (rolling_bar > 0.0) {
+		float roll_pos = frac(time * 0.25);
+		float roll_dist = uv.y - roll_pos;
+		/* wrap around */
+		if (roll_dist > 0.5) roll_dist -= 1.0;
+		if (roll_dist < -0.5) roll_dist += 1.0;
+		float roll_darken = exp(-roll_dist * roll_dist * 8000.0) * rolling_bar * 0.6;
+		color.rgb *= (1.0 - roll_darken);
+	}
+
+	/* --- Frozen frame static overlay --- */
+	if (freeze_time > 0.5) {
+		float freeze_noise = random(pixel + floor(time * 10.0)) * 0.08;
+		color.rgb += freeze_noise;
+		/* Subtle color desaturation during freeze */
+		float lum = dot(color.rgb, float3(0.299, 0.587, 0.114));
+		color.rgb = lerp(color.rgb, float3(lum, lum, lum), 0.15);
+	}
+
+	/* --- Vignette darkening --- */
+	float2 vignette_uv = v_in.uv * (1.0 - v_in.uv);
+	float vignette = vignette_uv.x * vignette_uv.y * 15.0;
+	vignette = pow(vignette, 0.15);
+	color.rgb *= vignette;
+
+	return color;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDistort(v_in);
+	}
+}

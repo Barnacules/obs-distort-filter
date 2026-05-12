@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+build_*/
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Release packaging
+obs-distort-filter-release/
+obs-distort-filter-release.zip
+
+# OBS Studio source (if cloned locally for building)
+obs-studio-src/
+
+# Misc
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
