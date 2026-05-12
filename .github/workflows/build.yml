@@ -65,7 +65,11 @@ jobs:
         run: |
           $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
           cd "$obsSrc"
-          cmake --preset windows-x64 -B build_x64 -DENABLE_BROWSER=OFF -DENABLE_UI=OFF -DENABLE_SCRIPTING=OFF -DENABLE_HEVC=OFF -DENABLE_PLUGINS=ON -DENABLE_SERVICE_UPDATES=OFF
+          # Override Windows SDK version to match what's installed on the runner
+          cmake --preset windows-x64 -B build_x64 `
+            -DCMAKE_SYSTEM_VERSION=10.0.26100.0 `
+            -DENABLE_BROWSER=OFF -DENABLE_UI=OFF -DENABLE_SCRIPTING=OFF `
+            -DENABLE_HEVC=OFF -DENABLE_PLUGINS=ON -DENABLE_SERVICE_UPDATES=OFF
           cmake --build build_x64 --target obs-distort-filter --config Release
 
       - name: Package
