@@ -8,6 +8,12 @@ A video filter plugin for OBS Studio that applies a distorted, pixelated, glitch
 |---|---|---|---|
 | ![Default Look](assets/thumbnail1.png) | ![Heavy Glitch](assets/thumbnail2.png) | ![Packet Loss + Freeze](assets/thumbnail3.png) | ![Full Chaos](assets/thumbnail4.png) |
 
+## Support the Project
+
+This plugin is completely free and open source. If you find it useful and want to help keep projects like this coming, a tip is always appreciated but never expected.
+
+[**Leave a Tip**](https://streamelements.com/barnacules/tip) — it genuinely helps fuel late-night coding sessions and keeps the weird plugins flowing.
+
 ## Features
 
 | Feature | Description |
@@ -170,3 +176,5 @@ obs-distort-filter/
 ## License
 
 MIT License — do whatever you want with it.
+
+Made with caffeine and chaos. If this plugin made your stream more interesting, [a tip helps keep the projects coming](https://streamelements.com/barnacules/tip). No pressure either way — just glad you're using it.
