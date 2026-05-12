@@ -177,4 +177,4 @@ obs-distort-filter/
 
 MIT License — do whatever you want with it.
 
-Made with caffeine and chaos. If this plugin made your stream more interesting, [a tip helps keep the projects coming](https://streamelements.com/barnacules/tip). No pressure either way — just glad you're using it.
+Coded using OpenClaude + Kimi K2.6 on request from co-host during [#TechTalk livestream](youtube.com/barnacules1). If you enjoy this plugin please consider [tipping](https://streamelements.com/barnacules/tip). No pressure, just glad you're using & enjoying it!
