@@ -20,6 +20,7 @@ jobs:
           sudo apt-get install -y -qq cmake build-essential libobs-dev
 
       - name: Build
+        working-directory: obs-distort-filter
         run: |
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -29,9 +30,9 @@ jobs:
         run: |
           mkdir -p obs-distort-filter-linux/obs-plugins/64bit
           mkdir -p obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/locale
-          cp build/obs-distort-filter.so obs-distort-filter-linux/obs-plugins/64bit/
-          cp data/distort_filter.effect obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/
-          cp data/locale/en-US.ini obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/locale/
+          cp obs-distort-filter/build/obs-distort-filter.so obs-distort-filter-linux/obs-plugins/64bit/
+          cp obs-distort-filter/data/distort_filter.effect obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/
+          cp obs-distort-filter/data/locale/en-US.ini obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/locale/
           tar czf obs-distort-filter-linux.tar.gz obs-distort-filter-linux/
 
       - name: Upload artifact
@@ -50,7 +51,11 @@ jobs:
         run: |
           $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
           git clone --recursive --depth 1 https://github.com/obsproject/obs-studio.git "$obsSrc"
-          Copy-Item -Recurse -Force "${{ github.workspace }}" "$obsSrc\plugins\obs-distort-filter"
+          # Fix version detection by creating a tag
+          cd "$obsSrc"
+          git tag 31.0.0
+          cd "${{ github.workspace }}"
+          Copy-Item -Recurse -Force "${{ github.workspace }}\obs-distort-filter" "$obsSrc\plugins\obs-distort-filter"
           $content = Get-Content "$obsSrc\plugins\CMakeLists.txt" -Raw
           $content = $content -replace 'add_obs_plugin\(obs-filters\)', "add_obs_plugin(obs-distort-filter PLATFORMS WINDOWS)`nadd_obs_plugin(obs-filters)"
           Set-Content "$obsSrc\plugins\CMakeLists.txt" $content
@@ -70,8 +75,8 @@ jobs:
           mkdir -p obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale
           $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
           cp "$obsSrc\build_x64\plugins\obs-distort-filter\Release\obs-distort-filter.dll" obs-distort-filter-windows\obs-plugins\64bit\
-          cp data\distort_filter.effect obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\
-          cp data\locale\en-US.ini obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale\
+          cp obs-distort-filter\data\distort_filter.effect obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\
+          cp obs-distort-filter\data\locale\en-US.ini obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale\
           Compress-Archive -Path obs-distort-filter-windows\* -DestinationPath obs-distort-filter-windows.zip
 
       - name: Upload artifact
@@ -87,23 +92,33 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake obs-studio
+          brew install cmake
+
+      - name: Setup OBS Studio
+        run: |
+          obsSrc="${{ github.workspace }}/../obs-studio-src"
+          git clone --recursive --depth 1 https://github.com/obsproject/obs-studio.git "$obsSrc"
+          cd "$obsSrc"
+          git tag 31.0.0
+          cd "${{ github.workspace }}"
+          cp -R obs-distort-filter "$obsSrc/plugins/obs-distort-filter"
+          sed -i '' 's/add_obs_plugin(obs-filters)/add_obs_plugin(obs-distort-filter PLATFORMS MACOS)\nadd_obs_plugin(obs-filters)/' "$obsSrc/plugins/CMakeLists.txt"
 
       - name: Build
         run: |
-          export LIBOBS_INCLUDE_DIR=$(brew --prefix obs-studio)/include/obs
-          export LIBOBS_LIB=$(brew --prefix obs-studio)/lib/libobs.dylib
-          mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DLIBOBS_INCLUDE_DIR=$LIBOBS_INCLUDE_DIR -DLIBOBS_LIB=$LIBOBS_LIB
-          make -j$(sysctl -n hw.ncpu)
+          obsSrc="${{ github.workspace }}/../obs-studio-src"
+          cd "$obsSrc"
+          cmake --preset macos -B build_macos -DENABLE_BROWSER=OFF -DENABLE_UI=OFF -DENABLE_SCRIPTING=OFF -DENABLE_HEVC=OFF -DENABLE_PLUGINS=ON -DENABLE_SERVICE_UPDATES=OFF
+          cmake --build build_macos --target obs-distort-filter --config Release
 
       - name: Package
         run: |
+          obsSrc="${{ github.workspace }}/../obs-studio-src"
           mkdir -p obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/MacOS
           mkdir -p obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources
-          cp build/obs-distort-filter.so obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/MacOS/obs-distort-filter
-          cp data/distort_filter.effect obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
-          cp data/locale/en-US.ini obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
+          cp "$obsSrc/build_macos/plugins/obs-distort-filter/Release/obs-distort-filter.so" obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/MacOS/obs-distort-filter
+          cp obs-distort-filter/data/distort_filter.effect obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
+          cp obs-distort-filter/data/locale/en-US.ini obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
           tar czf obs-distort-filter-macos.tar.gz obs-distort-filter-macos/
 
       - name: Upload artifact
