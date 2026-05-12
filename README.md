@@ -2,6 +2,12 @@
 
 A video filter plugin for OBS Studio that applies a distorted, pixelated, glitchy effect to any video source (webcam, screen capture, media source, etc.). Designed to look like a failing camera or bad video transmission — everything still works, but it looks broken.
 
+## Screenshots
+
+| Default Look | Heavy Glitch | Packet Loss + Freeze | Full Chaos |
+|---|---|---|---|
+| ![Default Look](assets/thumbnail1.png) | ![Heavy Glitch](assets/thumbnail2.png) | ![Packet Loss + Freeze](assets/thumbnail3.png) | ![Full Chaos](assets/thumbnail4.png) |
+
 ## Features
 
 | Feature | Description |
