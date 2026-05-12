@@ -6,6 +6,7 @@ on:
     tags: ['v*']
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
 
 jobs:
   build-linux:
@@ -45,25 +46,30 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup OBS Studio
+        shell: pwsh
         run: |
-          git clone --recursive --depth 1 https://github.com/obsproject/obs-studio.git ..
-\obs-studio-src
-          Copy-Item -Recurse -Force . ..\obs-studio-src\plugins\obs-distort-filter
-          $content = Get-Content ..\obs-studio-src\plugins\CMakeLists.txt -Raw
+          $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
+          git clone --recursive --depth 1 https://github.com/obsproject/obs-studio.git "$obsSrc"
+          Copy-Item -Recurse -Force "${{ github.workspace }}" "$obsSrc\plugins\obs-distort-filter"
+          $content = Get-Content "$obsSrc\plugins\CMakeLists.txt" -Raw
           $content = $content -replace 'add_obs_plugin\(obs-filters\)', "add_obs_plugin(obs-distort-filter PLATFORMS WINDOWS)`nadd_obs_plugin(obs-filters)"
-          Set-Content ..\obs-studio-src\plugins\CMakeLists.txt $content
+          Set-Content "$obsSrc\plugins\CMakeLists.txt" $content
 
       - name: Build
+        shell: pwsh
         run: |
-          cd ..\obs-studio-src
+          $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
+          cd "$obsSrc"
           cmake --preset windows-x64 -B build_x64 -DENABLE_BROWSER=OFF -DENABLE_UI=OFF -DENABLE_SCRIPTING=OFF -DENABLE_HEVC=OFF -DENABLE_PLUGINS=ON -DENABLE_SERVICE_UPDATES=OFF
           cmake --build build_x64 --target obs-distort-filter --config Release
 
       - name: Package
+        shell: pwsh
         run: |
           mkdir -p obs-distort-filter-windows\obs-plugins\64bit
           mkdir -p obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale
-          cp ..\obs-studio-src\build_x64\plugins\obs-distort-filter\Release\obs-distort-filter.dll obs-distort-filter-windows\obs-plugins\64bit\
+          $obsSrc = "${{ github.workspace }}\..\obs-studio-src"
+          cp "$obsSrc\build_x64\plugins\obs-distort-filter\Release\obs-distort-filter.dll" obs-distort-filter-windows\obs-plugins\64bit\
           cp data\distort_filter.effect obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\
           cp data\locale\en-US.ini obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale\
           Compress-Archive -Path obs-distort-filter-windows\* -DestinationPath obs-distort-filter-windows.zip
