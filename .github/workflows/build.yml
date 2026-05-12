@@ -1,0 +1,130 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake build-essential libobs-dev
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Package
+        run: |
+          mkdir -p obs-distort-filter-linux/obs-plugins/64bit
+          mkdir -p obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/locale
+          cp build/obs-distort-filter.so obs-distort-filter-linux/obs-plugins/64bit/
+          cp data/distort_filter.effect obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/
+          cp data/locale/en-US.ini obs-distort-filter-linux/data/obs-plugins/obs-distort-filter/locale/
+          tar czf obs-distort-filter-linux.tar.gz obs-distort-filter-linux/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-distort-filter-linux
+          path: obs-distort-filter-linux.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OBS Studio
+        run: |
+          git clone --recursive --depth 1 https://github.com/obsproject/obs-studio.git ..
+\obs-studio-src
+          Copy-Item -Recurse -Force . ..\obs-studio-src\plugins\obs-distort-filter
+          $content = Get-Content ..\obs-studio-src\plugins\CMakeLists.txt -Raw
+          $content = $content -replace 'add_obs_plugin\(obs-filters\)', "add_obs_plugin(obs-distort-filter PLATFORMS WINDOWS)`nadd_obs_plugin(obs-filters)"
+          Set-Content ..\obs-studio-src\plugins\CMakeLists.txt $content
+
+      - name: Build
+        run: |
+          cd ..\obs-studio-src
+          cmake --preset windows-x64 -B build_x64 -DENABLE_BROWSER=OFF -DENABLE_UI=OFF -DENABLE_SCRIPTING=OFF -DENABLE_HEVC=OFF -DENABLE_PLUGINS=ON -DENABLE_SERVICE_UPDATES=OFF
+          cmake --build build_x64 --target obs-distort-filter --config Release
+
+      - name: Package
+        run: |
+          mkdir -p obs-distort-filter-windows\obs-plugins\64bit
+          mkdir -p obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale
+          cp ..\obs-studio-src\build_x64\plugins\obs-distort-filter\Release\obs-distort-filter.dll obs-distort-filter-windows\obs-plugins\64bit\
+          cp data\distort_filter.effect obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\
+          cp data\locale\en-US.ini obs-distort-filter-windows\data\obs-plugins\obs-distort-filter\locale\
+          Compress-Archive -Path obs-distort-filter-windows\* -DestinationPath obs-distort-filter-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-distort-filter-windows
+          path: obs-distort-filter-windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install cmake obs-studio
+
+      - name: Build
+        run: |
+          export LIBOBS_INCLUDE_DIR=$(brew --prefix obs-studio)/include/obs
+          export LIBOBS_LIB=$(brew --prefix obs-studio)/lib/libobs.dylib
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DLIBOBS_INCLUDE_DIR=$LIBOBS_INCLUDE_DIR -DLIBOBS_LIB=$LIBOBS_LIB
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Package
+        run: |
+          mkdir -p obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/MacOS
+          mkdir -p obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources
+          cp build/obs-distort-filter.so obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/MacOS/obs-distort-filter
+          cp data/distort_filter.effect obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
+          cp data/locale/en-US.ini obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin/Contents/Resources/
+          tar czf obs-distort-filter-macos.tar.gz obs-distort-filter-macos/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-distort-filter-macos
+          path: obs-distort-filter-macos.tar.gz
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/obs-distort-filter-linux/obs-distort-filter-linux.tar.gz
+            artifacts/obs-distort-filter-windows/obs-distort-filter-windows.zip
+            artifacts/obs-distort-filter-macos/obs-distort-filter-macos.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

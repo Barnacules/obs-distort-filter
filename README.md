@@ -37,16 +37,18 @@ This plugin is completely free and open source. If you find it useful and want t
 
 ## Installation
 
-### Method 1: Automatic Installer (Recommended)
+### Windows
 
-1. Download the latest release zip (`obs-distort-filter-release.zip`)
+#### Method 1: Automatic Installer (Recommended)
+
+1. Download `obs-distort-filter-windows.zip` from the [latest release](https://github.com/Barnacules/obs-distort-filter/releases)
 2. Extract it anywhere
 3. Right-click **`INSTALL.ps1`** → **Run with PowerShell**
    - The script auto-detects your OBS installation path
    - If it can't find OBS, it'll ask you to type the path
 4. Restart OBS Studio
 
-### Method 2: Manual Copy
+#### Method 2: Manual Copy
 
 1. Close OBS Studio completely
 2. Copy `obs-plugins/64bit/obs-distort-filter.dll` to your OBS `obs-plugins/64bit/` folder
@@ -54,11 +56,72 @@ This plugin is completely free and open source. If you find it useful and want t
 4. Copy `data/obs-plugins/obs-distort-filter/locale/en-US.ini` to your OBS `data/obs-plugins/obs-distort-filter/locale/` folder
 5. Restart OBS Studio
 
-### Default OBS Paths
+**Default Windows Paths:**
+- Standard: `C:\Program Files\obs-studio\`
+- Steam: `C:\Program Files (x86)\Steam\steamapps\common\OBS Studio\`
+- Portable: wherever you extracted the portable zip
 
-- **Standard install**: `C:\Program Files\obs-studio\`
-- **Steam install**: `C:\Program Files (x86)\Steam\steamapps\common\OBS Studio\`
-- **Portable**: wherever you extracted the portable zip
+### Linux
+
+#### Method 1: Install Script
+
+1. Download `obs-distort-filter-linux.tar.gz` from the [latest release](https://github.com/Barnacules/obs-distort-filter/releases)
+2. Extract it: `tar xzf obs-distort-filter-linux.tar.gz`
+3. Run the installer:
+   ```bash
+   cd obs-distort-filter-linux
+   chmod +x INSTALL.sh
+   ./INSTALL.sh
+   ```
+4. Choose user-local (recommended, no sudo) or system-wide installation
+5. Restart OBS Studio
+
+#### Method 2: Manual Copy (User-Local)
+
+1. Close OBS Studio
+2. Create the plugin directory:
+   ```bash
+   mkdir -p ~/.config/obs-studio/plugins/obs-distort-filter/bin/64bit
+   mkdir -p ~/.config/obs-studio/plugins/obs-distort-filter/data/locale
+   ```
+3. Copy the files:
+   ```bash
+   cp obs-distort-filter.so ~/.config/obs-studio/plugins/obs-distort-filter/bin/64bit/
+   cp distort_filter.effect ~/.config/obs-studio/plugins/obs-distort-filter/data/
+   cp en-US.ini ~/.config/obs-studio/plugins/obs-distort-filter/data/locale/
+   ```
+4. Restart OBS Studio
+
+#### Method 3: Manual Copy (System-Wide)
+
+1. Close OBS Studio
+2. Copy the `.so` to your system OBS plugins directory:
+   ```bash
+   sudo cp obs-distort-filter.so /usr/lib/obs-plugins/
+   # or /usr/lib64/obs-plugins/ on some distros
+   ```
+3. Copy data files:
+   ```bash
+   sudo mkdir -p /usr/share/obs/obs-plugins/obs-distort-filter/locale
+   sudo cp distort_filter.effect /usr/share/obs/obs-plugins/obs-distort-filter/
+   sudo cp en-US.ini /usr/share/obs/obs-plugins/obs-distort-filter/locale/
+   ```
+4. Restart OBS Studio
+
+**Prerequisites:** `libobs0t64` (or equivalent) must be installed. Most OBS installs include this.
+
+### macOS
+
+1. Download `obs-distort-filter-macos.tar.gz` from the [latest release](https://github.com/Barnacules/obs-distort-filter/releases)
+2. Extract it: `tar xzf obs-distort-filter-macos.tar.gz`
+3. Copy the plugin bundle to your OBS plugins folder:
+   ```bash
+   cp -R obs-distort-filter-macos/obs-plugins/obs-distort-filter.plugin \
+     ~/Library/Application\ Support/obs-studio/plugins/
+   ```
+4. Restart OBS Studio
+
+> **Note for macOS users:** macOS binaries are built via GitHub Actions. If the latest release doesn't include a macOS build yet, you can build from source using the instructions below.
 
 ## Usage
 
@@ -160,18 +223,27 @@ obs-distort-filter/
 
 ## Compatibility
 
-- **OS**: Windows 10/11 (64-bit)
+| Platform | Status | Architecture |
+|---|---|---|
+| Windows 10/11 | Fully supported | x64 |
+| Linux (Ubuntu, Debian, Arch, etc.) | Fully supported | x64 |
+| macOS | Supported via GitHub Actions CI | x64 / Apple Silicon |
+
 - **OBS Studio**: 29.x, 30.x, 31.x (built with backward ABI compatibility)
-- **GPU**: DirectX 11 or OpenGL capable
+- **GPU**: DirectX 11 (Windows), OpenGL (Linux), Metal (macOS) capable
+- **Architecture**: 64-bit only
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---|---|
-| Filter does not appear in the menu | Make sure both `.dll` and `.effect` are in the correct directories and match your OBS architecture (64-bit) |
-| `obs_register_source: Tried to register obs_source_info with size 424 which is more than libobs currently supports` | This plugin is built with `obs_register_source_s(..., 408)` for backward compatibility. If you see this, you may have an older version of the DLL cached somewhere |
-| Black screen when filter is applied | The shader may have failed to compile. Check `Help → Log Files → View Current Log` for shader errors |
-| Performance issues | Reduce pixel size, disable scanlines, or lower freeze frame frequency to reduce GPU load |
+| **Filter does not appear in the menu** | Make sure the plugin binary (`.dll`/`.so`/`.dylib`) **and** the `.effect` shader file are both present. If either is missing, OBS loads the module but the filter won't register. Restart OBS after installing. |
+| **`obs_register_source: size mismatch` error** | This plugin uses `obs_register_source_s(..., 408)` for backward compatibility. If you see a struct size error, you may have an older version of the plugin cached somewhere. Search your entire OBS folder for `obs-distort-filter` and delete all copies, then reinstall. |
+| **Black screen when filter is applied** | The shader may have failed to compile. Check `Help → Log Files → View Current Log` (Windows) or launch OBS from terminal and check output (Linux/macOS) for shader compile errors. Make sure `distort_filter.effect` is in the correct data folder. |
+| **Performance issues / high GPU usage** | Reduce **Pixel Size**, disable **Scanlines**/**Interlace**, or lower **Freeze Frames** frequency. The effect is GPU-intensive; integrated graphics may struggle at 4K. Try 1080p or lower. |
+| **Linux: `error while loading shared libraries: libobs.so`** | Install the OBS runtime libraries: `sudo apt install libobs0t64` (Ubuntu/Debian) or equivalent for your distro. |
+| **Linux: plugin not found after installing** | Make sure you used the correct path. User-local install goes to `~/.config/obs-studio/plugins/obs-distort-filter/bin/64bit/obs-distort-filter.so`. Verify with `ls ~/.config/obs-studio/plugins/obs-distort-filter/bin/64bit/`. |
+| **macOS: "cannot be opened" security warning** | Right-click OBS → Get Info → check "Override Malware Protection" or go to System Settings → Privacy & Security → allow the plugin. This is normal for unsigned plugins. |
 
 ## License
 
