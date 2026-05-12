@@ -2,6 +2,14 @@
 
 The very first release of the OBS Glitch / Distortion Filter — a real-time video filter that makes your webcam (or any source) look like it's barely holding together.
 
+### Platform Support
+
+| Platform | Download | Status |
+|---|---|---|
+| Windows | `obs-distort-filter-release-x64.zip` | Ready |
+| Linux | `obs-distort-filter-linux.tar.gz` | Ready |
+| macOS | — | Coming via GitHub Actions CI on next release |
+
 ### Features
 - **Pixelation** — Blocky low-res look with optional randomization
 - **RGB Shift + Chroma Bleed** — Chromatic aberration and color bleeding
